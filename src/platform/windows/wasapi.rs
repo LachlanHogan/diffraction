@@ -9,7 +9,6 @@ use winapi::um::mmdeviceapi::{CLSID_MMDeviceEnumerator, IMMDeviceEnumerator, IMM
 use winapi::um::combaseapi::{CoCreateInstance, CLSCTX_ALL, CoTaskMemFree};
 use winapi::shared::mmreg::WAVEFORMATEX;
 use winapi::um::strmif::REFERENCE_TIME;
-use winapi::um::unknwnbase::IUnknown;
 
 pub struct COM();
 
@@ -202,7 +201,7 @@ impl AudioClient {
 impl Drop for AudioClient {
     fn drop(&mut self) {
         println!("Dropping AudioClient");
-        self.stop();
+        let _ = self.stop();
         unsafe { (*self.ptr).Release(); }
     }
 }
@@ -235,7 +234,7 @@ impl AudioRenderClient {
             return Err(());
         }
 
-        let mut slice = unsafe { std::slice::from_raw_parts_mut(data, buffer_size as usize * bytes_per_frame as usize) };
+        let slice = unsafe { std::slice::from_raw_parts_mut(data, buffer_size as usize * bytes_per_frame as usize) };
         Ok(slice)
     }
 

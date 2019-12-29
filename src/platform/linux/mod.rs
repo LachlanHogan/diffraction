@@ -1,4 +1,5 @@
 use crate::media::InterfaceTrait;
+use crate::network::accept_clients;
 use byte_slice_cast::*;
 use gstreamer::prelude::*;
 use gstreamer::{Caps, FlowSuccess, Pipeline, State};
@@ -42,9 +43,7 @@ impl InterfaceTrait for Interface {
             ],
         )));
 
-        let mut file = File::open("audio.raw").expect("Could not open audio.raw");
-        let mut file_buffer = vec![];
-        file.read_to_end(&mut file_buffer).expect("Could not read to end of file");
+        let mut stream = TcpStream::connect("192.168.0.37:42795").expect("Could not connect to TCP stream");
 
         app_src.set_callbacks(
             gstreamer_app::AppSrcCallbacks::new()
@@ -55,7 +54,9 @@ impl InterfaceTrait for Interface {
                         let buffer = buffer.get_mut().unwrap();
                         let mut data = buffer.map_writable().unwrap();
 
-                        let input: Vec<_> = file_buffer.drain(..buffer_size).collect();
+                        let mut input = vec![0; buffer_size];
+                        stream.read_exact(&mut input).unwrap();
+
                         let mut i = 0;
                         for p in data.as_mut_slice() {
                             *p = input[i];
@@ -146,31 +147,4 @@ fn gst_main_loop(pipeline: Pipeline) {
     }
 
     pipeline.set_state(State::Null).expect("Could not set gstreamer state to Null");
-}
-
-fn accept_clients(receiver: Receiver<Vec<u8>>) {
-    let mut listener = TcpListener::bind("0.0.0.0:42795").expect("Could not bind to port");
-    listener.set_nonblocking(true).expect("Could not make listener non-blocking");
-    let mut clients = vec![];
-
-    'accept: loop {
-        match listener.accept() {
-            Ok((stream, _address)) => {
-                println!("New client");
-                clients.push(stream);
-            }
-            _ => ()
-        }
-
-        match receiver.try_recv() {
-            Ok(val) => {
-                for mut client in &clients {
-                    client.write_all(&val).expect("Could not write to TCP stream");
-                }
-            },
-            _ => {
-                std::thread::sleep(std::time::Duration::from_millis(5));
-            },
-        }
-    }
 }
